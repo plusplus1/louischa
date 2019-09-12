@@ -77,10 +77,53 @@ def catalog(ctx, **kwargs):
         print("----\t 处理成功, 找到{}个章节".format(len(result)))
         print()
 
+    return
+
+
+@cli.command()
+@click.option('--title', '-t', required=True, type=click.STRING, help='小说名称')
+@click.option('--ver', '-v', default='修订版', help='版本', show_default=True)
+@click.option('--skip', '-s', is_flag=True, help='是否跳过已经存在的')
+@click.pass_context
+def body(ctx, **kwargs):
+    """更新小说内容"""
+    filter_dict = {k: v for k, v in kwargs.items() if v and k in ['title', 'ver']}
+    import config.db
+    c = config.db.connect()
+
+    book_list = [b for b in c.find(filter_dict, ['title', 'ver', 'url', 'catalog'])]
+    if not book_list:
+        logging.warning("没有符合条件的小说，请更新小说列表")
+        exit(-1)
+    if len(book_list) > 1:
+        logging.warning("存在多个版本的,请确认是否有误")
+        exit(-1)
+
+    book = book_list[0]
+    do_skip = kwargs['skip']
+    from crawler.novels.content import ContentCrawler
+    crawler = ContentCrawler(**ctx.obj)
+
+    title = book['title']
+    ver = book['ver']
+    catalog_lst = book['catalog']
+
+    for catalog in catalog_lst:
+        body = catalog.get('body')
+        if body and do_skip:
+            print("---> 跳过已处理的内容：", title, ver, catalog['title'], catalog['url'])
+            continue
+
+        body = crawler.run(title=title, ver=ver, catalog=catalog)
+        print("---> 正在处理：", title, ver, catalog['title'], catalog['url'])
+        print("\t--> body = ", body)
+        break
+
+    print()
+    return
+
 
 if __name__ == '__main__':
     cli()
 
-pass
-
-pass
+    pass
