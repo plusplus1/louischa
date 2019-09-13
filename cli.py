@@ -160,6 +160,40 @@ def list_book(ctx, **kwargs):
     return
 
 
+@cli.command()
+@click.option('--title', '-t', required=True, type=click.STRING, help='小说名称')
+@click.option('--ver', '-v', default='修订版', help='版本', show_default=True)
+@click.pass_context
+def dump_book(ctx, **kwargs):
+    """导出电子书"""
+    import config.db
+    from jinja2 import PackageLoader, Environment
+    import bson
+    c0 = config.db.connect()
+    c1 = config.db.connect_contents()
+    env = Environment(loader=PackageLoader(__name__, 'templates'))
+
+    book = c0.find_one({'title': kwargs['title'], 'ver': kwargs['ver']})
+    catalog = book['catalog']
+    tpl = env.get_template('index.html')
+    html = tpl.render(title=book['title'], ver=book['ver'], catalog=catalog)
+    with open('data/index.html', 'w') as out_index:
+        out_index.write(html)
+
+    tpl_chapter = env.get_template('chapter.html')
+
+    for cat in catalog:
+        body_id = cat['body_id']
+        doc = c1.find_one({'_id': bson.ObjectId(body_id)})
+        html_chapter = tpl_chapter.render(title=book['title'] + " " + cat['title'],
+                                          body=doc['body'])
+        with open('data/pages/%s.html' % body_id, 'w') as out_body:
+            out_body.write(html_chapter)
+        pass
+
+
+pass
+
 if __name__ == '__main__':
     cli()
 

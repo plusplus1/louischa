@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{title}}</title>
+</head>
+<body>
+<div>
+    {{ title }} - {{ ver }}
+</div>
+
+<div>
+    <ul>
+        {% for cat in catalog %}
+        <li>
+            <a href="./pages/{{cat.body_id}}.html">{{cat.title}}</a>
+            &nbsp;
+
+            <a href="{{cat.url}}">{{cat.url}}</a>
+        </li>
+        {% endfor %}
+    </ul>
+
+</div>
+</body>
+</html>
