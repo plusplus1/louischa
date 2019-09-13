@@ -108,18 +108,55 @@ def body(ctx, **kwargs):
     ver = book['ver']
     catalog_lst = book['catalog']
 
-    for catalog in catalog_lst:
-        body = catalog.get('body')
-        if body and do_skip:
-            print("---> 跳过已处理的内容：", title, ver, catalog['title'], catalog['url'])
-            continue
+    modified = False
 
-        body = crawler.run(title=title, ver=ver, catalog=catalog)
+    for catalog in catalog_lst:
+        if catalog.get('body_id'):
+            if do_skip:
+                print("---> 跳过已处理的内容：", title, ver, catalog['title'], catalog['url'])
+                print("\t--> body = ", catalog['body_id'], catalog['length'])
+                continue
+
+        body_id, body_length = crawler.run(title=title, ver=ver, catalog=catalog)
+        catalog['body_id'] = str(body_id)
+        catalog['length'] = body_length
+        modified = True
         print("---> 正在处理：", title, ver, catalog['title'], catalog['url'])
-        print("\t--> body = ", body)
-        break
+        print("\t--> body = ", body_id, body_length)
+
+    if modified:
+        up_ret = c.update_one({'_id': book['_id']}, {"$set": {'catalog': catalog_lst}})
+        if up_ret.modified_count > 0:
+            print("\t\t--> save catalog ok")
+    print()
+    return
+
+
+@cli.command()
+@click.option('--ver', '-v', default='修订版', help='版本', show_default=True)
+@click.pass_context
+def list_book(ctx, **kwargs):
+    """列出书籍列表"""
+    import config.db
+
+    c = config.db.connect()
+    v_dict = dict()
+    cursor = c.find(None, ['title', 'ver'])
+    for row in cursor:
+        if row['ver'] not in v_dict:
+            v_dict[row['ver']] = []
+        v_dict[row['ver']].append(row['title'])
+        pass
+
+    books = v_dict.pop(kwargs['ver'])
+    for b in books:
+        print(kwargs['ver'], "\t", b)
+        continue
 
     print()
+    for v, bl in v_dict.items():
+        print(v, "\t有%s个记录" % len(bl))
+
     return
 
 

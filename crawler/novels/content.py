@@ -12,17 +12,25 @@ class ContentCrawler(crawler.base.BaseCrawler):
     """ crawl novel content """
 
     _pattern = re.compile('adsbygoogle\s*=\s*window.adsbygoogle\s*\|\|\s*\[\]\).push\(\{\}\);\s*</script>\s*'
-                          '(<p>.*</p>)'
+                          '(<p>.*p>)'
                           '\s*<script async src=',
                           re.RegexFlag.S)
 
     def _save(self, title, ver, catalog, body):
-        c = config.db.connect()
         now = datetime.datetime.now().astimezone(config.tz_local)
-        id(now)
-        id(c)
+        condition = dict(catalog_title=catalog['title'], catalog_url=catalog['url'],
+                         title=title, ver=ver)
+        doc = dict(body=body, update_time=now, length=len(body))
+        doc.update(condition)
+        c = config.db.connect_contents()
+        up_result = c.update_one(condition, {"$set": doc}, upsert=True)
+        self.logger.info("save content ok, condition= %s, content_len=%s, up_cnt=%s, insert_id=%s",
+                         condition, len(body), up_result.modified_count, up_result.upserted_id)
+        if up_result and up_result.upserted_id:
+            return up_result.upserted_id
 
-        pass
+        record = c.find_one(condition, ['_id'])
+        return record['_id']
 
     def run(self, **kwargs):
         title = kwargs['title']
@@ -31,11 +39,12 @@ class ContentCrawler(crawler.base.BaseCrawler):
 
         url = catalog['url']
         resp = self.request(url)
-        self._save(title, ver, catalog, resp)
 
         text = resp.text
 
         m = self._pattern.search(text)
-        return m.group(1)
+        body = m.group(1)
+        body_id = self._save(title, ver, catalog, body)
+        return body_id, len(body)
 
     pass
